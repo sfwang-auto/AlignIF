@@ -166,7 +166,7 @@ class AlignIF(nn.Module):
                 nn.init.xavier_uniform_(p)
 
     def cal_ce_loss(self, align_seq, align_mask, mask, logits):
-        align_seq = align_seq * mask[None]
+        align_seq = align_seq * mask[None] * align_mask.squeeze(-1)
         seq_onehot = nn.functional.one_hot(align_seq, 4).float()
         seq_onehot = (seq_onehot * align_mask).sum(0) / align_mask.sum(0)
 
@@ -214,7 +214,7 @@ class AlignIF(nn.Module):
                     align_i = align[:, 0] + (datum_batch < i).sum().item()
                     align_h_V[align0] = h_V_align[align_i]
                     align_seq[align0] = datum.seq[align_i]
-                    align_mask[align0] = 1
+                    align_mask[align0] = datum.mask[align_i].to(align_mask.dtype)
             align_h_V_list.append(align_h_V)
             align_seq_list.append(align_seq)
             align_mask_list.append(align_mask)
@@ -259,7 +259,7 @@ class AlignIF(nn.Module):
                     align0 = align[:, 1] + (batch < i).sum().item()
                     align_i = align[:, 0] + (datum_batch < i).sum().item()
                     align_h_V[align0] = h_V_align[align_i]
-                    align_mask[align0] = 1
+                    align_mask[align0] = datum.mask[align_i].to(align_mask.dtype)
             align_h_V_list.append(align_h_V)
             align_mask_list.append(align_mask)
         h_V = torch.stack([h_V] + align_h_V_list, dim=0)
