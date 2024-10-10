@@ -1,11 +1,14 @@
 import torch
 from modules.baseline import BaseLine
+from modules.alignif import AlignIF
 
 
 def get_model(args, device, model_path=''):
     model_name = args.model_name
     if model_name == 'baseline':
         model = BaseLine(args)
+    if model_name == 'alignif':
+        model = AlignIF(args)
     model = model.to(device)
     model.model_name = model_name
     

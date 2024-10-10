@@ -6,9 +6,8 @@ from modules.layers import MPNNLayer
 
 
 class Featurizer(nn.Module):
-    def __init__(self, args, eps=1e-6):
+    def __init__(self, args):
         super().__init__()
-        self.eps = eps
         self.central_idx = args.bb_atoms.index(args.central_atom)
 
         node_in_dim = 4
@@ -20,7 +19,7 @@ class Featurizer(nn.Module):
         self.node_norm = nn.LayerNorm(hidden_dim)
         self.edge_norm = nn.LayerNorm(hidden_dim)
     
-    def cal_dihedral(self, X, batch):
+    def cal_dihedral(self, X, batch, eps=1e-6):
         X = X.reshape(-1, 3)
 
         dX = X[1:] - X[:-1]
@@ -32,7 +31,7 @@ class Featurizer(nn.Module):
         cross2 = F.normalize(cross2, dim=-1)
 
         dihedral = torch.arccos(
-            (cross1 * cross2).sum(-1).clip(-1 + self.eps, 1 - self.eps)
+            (cross1 * cross2).sum(-1).clip(-1 + eps, 1 - eps)
         ) * torch.sign((cross2 * U[:-2]).sum(-1))
         dihedral = F.pad(dihedral, (1, 2), 'constant', torch.nan)
 
@@ -42,12 +41,12 @@ class Featurizer(nn.Module):
         dihedral[idx - 2] = torch.nan
         return torch.cat([torch.sin(dihedral)[:, None], torch.cos(dihedral)[:, None]], dim=-1)
     
-    def cal_angle(self, X, batch):
+    def cal_angle(self, X, batch, eps=1e-6):
         dX0 = F.normalize(X[:-2] - X[1:-1], dim=-1)
         dX1 = F.normalize(X[2:] - X[1:-1], dim=-1)
 
         cosine = (dX0 * dX1).sum(-1)
-        sine = torch.sqrt(1 - cosine.pow(2) + self.eps)
+        sine = torch.sqrt(1 - cosine.pow(2) + eps)
         sine = F.pad(sine, (1, 1), 'constant', torch.nan)
         cosine = F.pad(cosine, (1, 1), 'constant', torch.nan)
 
@@ -67,9 +66,9 @@ class Featurizer(nn.Module):
             -((D[..., None] - D_mu) / D_sigma) ** 2
         )
     
-    def cal_dist(self, central_X, src_idx, tgt_idx):
+    def cal_dist(self, central_X, src_idx, tgt_idx, eps=1e-6):
         dist = torch.sqrt(
-            (central_X[src_idx] - central_X[tgt_idx]).pow(2).sum(-1) + self.eps
+            (central_X[src_idx] - central_X[tgt_idx]).pow(2).sum(-1) + eps
         )
         dist = self.rbf(dist)
         return dist
@@ -145,9 +144,8 @@ class Featurizer(nn.Module):
     
 
 class BaseLine(nn.Module):
-    def __init__(self, args, eps=1e-6):
+    def __init__(self, args):
         super().__init__()
-        self.eps = eps
         drop_rate = args.drop_rate
         hidden_dim = args.hidden_dim
         self.weight_smooth = args.weight_smooth

@@ -1,6 +1,6 @@
 import os
 import torch
-from torch import nn
+import random
 import torch.utils.data as data
 from torch_geometric.data import Data
 
@@ -12,6 +12,7 @@ class RNADataset(data.Dataset):
     def __init__(self, args, split, radius=20):
         super().__init__()
         self.radius = radius
+        self.n_aligns = args.n_aligns
 
         self.bb_atoms = args.bb_atoms
         self.central_idx = self.bb_atoms.index(args.central_atom)
@@ -19,6 +20,7 @@ class RNADataset(data.Dataset):
         
         self.processed_dir = 'data/repre_aligned_processed/'
         self.split = torch.load('data/repre_split.pt')[split]
+        self.id_to_align = torch.load('data/repre_id_to_align.pt')
     
     def radius_neighbor(self, X, eps=1e-6):
         dist = torch.sqrt(
@@ -33,8 +35,8 @@ class RNADataset(data.Dataset):
     def __len__(self): 
         return len(self.split)
     
-    def __getitem__(self, i): 
-        data = torch.load(os.path.join(self.processed_dir, self.split[i] + '.pt'))
+    def __getitem__(self, idx): 
+        data = torch.load(os.path.join(self.processed_dir, self.split[idx] + '.pt'))
 
         coords = torch.tensor(data['coords'][:, self.bb_idx]).to(torch.float32)
         central_coords = coords[:, self.central_idx]
@@ -54,3 +56,76 @@ class RNADataset(data.Dataset):
             num_nodes=num_nodes, edge_index=edge_index, 
             coords=coords, central_coords=central_coords, 
         )
+
+
+class AlignIFDataset(data.Dataset):
+    def __init__(self, args, split, radius=20):
+        super().__init__()
+        self.radius = radius
+        self.n_aligns = args.n_aligns
+
+        self.bb_atoms = args.bb_atoms
+        self.central_idx = self.bb_atoms.index(args.central_atom)
+        self.bb_idx = [BB_ATOMS.index(bb_atom) for bb_atom in self.bb_atoms]
+        
+        self.processed_dir = 'data/repre_aligned_processed/'
+        self.split = torch.load('data/repre_split.pt')[split]
+        self.id_to_align = torch.load('data/repre_id_to_align.pt')
+    
+    def radius_neighbor(self, X, eps=1e-6):
+        dist = torch.sqrt(
+            (X[:, None] - X[None]).pow(2).sum(-1) + eps
+        )
+
+        n = X.shape[0]
+        dist[torch.arange(n), torch.arange(n)] = 0
+        tgt_idx, src_idx = torch.where(dist < self.radius)
+        return src_idx, tgt_idx
+
+    def __len__(self): 
+        return len(self.split)
+    
+    def process(self, id, align_id=None):
+        data = torch.load(os.path.join(self.processed_dir, id + '.pt'))
+
+        coords = torch.tensor(data['coords'][:, self.bb_idx]).to(torch.float32)
+        central_coords = coords[:, self.central_idx]
+
+        src_idx, tgt_idx = self.radius_neighbor(central_coords)
+
+        edge_index = torch.cat([src_idx[None], tgt_idx[None]], dim=0)
+
+        seq = torch.tensor(
+            [LETTER_TO_NUM[res] for res in data['sequence']]
+        )
+        mask = torch.logical_and(seq < 4, ~torch.isnan(central_coords[:, 0]))
+
+        # notice that two align structures are exchange
+        align = [None]
+        if align_id is not None:
+            align = [data['align'][align_id]['align']]
+
+        num_nodes = seq.shape[0]
+        return Data(
+            seq=seq, mask=mask, 
+            num_nodes=num_nodes, edge_index=edge_index, 
+            coords=coords, central_coords=central_coords, 
+            align=align
+        )
+    
+    def __getitem__(self, idx): 
+        id = self.split[idx]
+        data = self.process(id)
+        
+        align_ids = self.id_to_align[id]
+        random.shuffle(align_ids)
+        align_ids = align_ids[:self.n_aligns]
+
+        data_list = [data]
+        for align_id in align_ids:
+            data_list.append(self.process(align_id, id))
+        
+        for _ in range(self.n_aligns + 1 - len(data_list)):
+            data_list.append(self.process(id))
+        
+        return data_list
