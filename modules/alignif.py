@@ -148,6 +148,7 @@ class AlignIF(nn.Module):
         super().__init__()
         drop_rate = args.drop_rate
         hidden_dim = args.hidden_dim
+        self.loose_label = args.loose_label
         self.weight_smooth = args.weight_smooth
 
         self.featurizer = Featurizer(args)
@@ -166,9 +167,13 @@ class AlignIF(nn.Module):
                 nn.init.xavier_uniform_(p)
 
     def cal_ce_loss(self, align_seq, align_mask, mask, logits):
-        align_seq = align_seq * mask[None] * align_mask.squeeze(-1)
-        seq_onehot = nn.functional.one_hot(align_seq, 4).float()
-        seq_onehot = (seq_onehot * align_mask).sum(0) / align_mask.sum(0)
+        if self.loose_label:
+            seq = align_seq * mask[None] * align_mask.squeeze(-1)
+            seq_onehot = nn.functional.one_hot(seq, 4).float()
+            seq_onehot = (seq_onehot * align_mask).sum(0) / align_mask.sum(0)
+        else:
+            seq = align_seq[0] * mask
+            seq_onehot = nn.functional.one_hot(seq, 4).float()
 
         if self.training:
             seq_onehot = seq_onehot + self.weight_smooth / 4

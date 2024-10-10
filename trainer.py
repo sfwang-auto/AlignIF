@@ -67,7 +67,10 @@ def train(args, model, train_loader, val_loader,  device):
 
 
 def alignif_train(args, model, train_loader, val_loader,  device):
-    name = f"{args.model_name}"
+    if args.loose_label:
+        name = f"{args.model_name}_loose_label"
+    else:
+        name = f"{args.model_name}"
     optimizer = Adam(model.parameters(), args.lr)
 
     os.makedirs('paras', exist_ok=True)
