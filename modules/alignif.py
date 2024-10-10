@@ -165,9 +165,10 @@ class AlignIF(nn.Module):
             if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
 
-    def cal_ce_loss(self, seq, mask, logits):
-        seq = seq * mask
-        seq_onehot = nn.functional.one_hot(seq, 4).float()
+    def cal_ce_loss(self, align_seq, align_mask, mask, logits):
+        align_seq = align_seq * mask[None]
+        seq_onehot = nn.functional.one_hot(align_seq, 4).float()
+        seq_onehot = (seq_onehot * align_mask).sum(0) / align_mask.sum(0)
 
         if self.training:
             seq_onehot = seq_onehot + self.weight_smooth / 4
@@ -185,6 +186,55 @@ class AlignIF(nn.Module):
         return h_V, h_E
     
     def forward(self, data):
+        h_V_list, h_E_list = [], []
+        for datum in data:
+            h_V, h_E = self.encode(datum)
+            h_V_list.append(h_V)
+            h_E_list.append(h_E)
+        
+        h_V = h_V_list[0]
+        h_E = h_E_list[0]
+        seq = data[0].seq
+        align_h_V_list = []
+        align_seq_list = []
+        align_mask_list = []
+        batch = data[0].batch
+        for datum, h_V_align in zip(data[1:], h_V_list[1:]):
+            datum_batch = datum.batch
+            align_h_V = torch.zeros_like(h_V)
+            align_seq = torch.zeros_like(seq)
+            align_mask = torch.zeros(h_V.shape[0], device=h_V.device)
+            for i in range(datum_batch[-1] + 1):
+                align = datum.align[i][0]
+                if align is None:
+                    continue
+                else:
+                    # two align structures are exchange in dataset.AlignIFDataset.process()
+                    align0 = align[:, 1] + (batch < i).sum().item()
+                    align_i = align[:, 0] + (datum_batch < i).sum().item()
+                    align_h_V[align0] = h_V_align[align_i]
+                    align_seq[align0] = datum.seq[align_i]
+                    align_mask[align0] = 1
+            align_h_V_list.append(align_h_V)
+            align_seq_list.append(align_seq)
+            align_mask_list.append(align_mask)
+        h_V = torch.stack([h_V] + align_h_V_list, dim=0)
+        align_seq = torch.stack([seq] + align_seq_list, dim=0)
+        align_mask = torch.stack([torch.ones(h_V.shape[1], device=h_V.device)] + align_mask_list, dim=0)[..., None]
+        
+        # average merge
+        h_V = (h_V * align_mask).sum(0) / align_mask.sum(0)
+
+        data = data[0]
+        edge_idx = data.edge_index
+        for layer in self.decoder_layers:
+            h_V = layer(h_V, h_E, edge_idx)
+        
+        logits = self.W_out(h_V)
+        ce_loss = self.cal_ce_loss(align_seq, align_mask, data.mask, logits)
+        return ce_loss
+    
+    def infer(self, data):
         h_V_list, h_E_list = [], []
         for datum in data:
             h_V, h_E = self.encode(datum)
@@ -213,27 +263,13 @@ class AlignIF(nn.Module):
             align_h_V_list.append(align_h_V)
             align_mask_list.append(align_mask)
         h_V = torch.stack([h_V] + align_h_V_list, dim=0)
-        align_mask = torch.stack([torch.ones_like(align_mask_list[0])] + align_mask_list, dim=0)[..., None]
+        align_mask = torch.stack([torch.ones(h_V.shape[1], device=h_V.device)] + align_mask_list, dim=0)[..., None]
         
         # average merge
         h_V = (h_V * align_mask).sum(0) / align_mask.sum(0)
 
         data = data[0]
         edge_idx = data.edge_index
-        for layer in self.decoder_layers:
-            h_V = layer(h_V, h_E, edge_idx)
-        
-        logits = self.W_out(h_V)
-        ce_loss = self.cal_ce_loss(data.seq, data.mask, logits)
-        return ce_loss
-    
-    def infer(self, data):
-        edge_idx = data.edge_index 
-        h_V, h_E = self.featurizer(data)
-
-        for layer in self.encoder_layers:
-            h_V = layer(h_V, h_E, edge_idx)
-        
         for layer in self.decoder_layers:
             h_V = layer(h_V, h_E, edge_idx)
         

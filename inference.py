@@ -22,12 +22,12 @@ def infer(model, test_loader, device):
     model.eval()
     seqs, preds, masks, logits = [], [], [], []
     with torch.no_grad():
-        for batch in test_loader:
-            batch = batch.to(device)
-            pred, logit = model.infer(batch)
-            seqs.append(batch.seq)
+        for data in test_loader:
+            data = data.to(device)
+            pred, logit = model.infer(data)
+            seqs.append(data.seq)
             preds.append(pred)
-            masks.append(batch.mask)
+            masks.append(data.mask)
             logits.append(logit)
         seqs = torch.cat(seqs)
         preds = torch.cat(preds)

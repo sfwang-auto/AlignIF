@@ -10,7 +10,7 @@ def get_model(args, device, model_path=''):
     if model_name == 'alignif':
         model = AlignIF(args)
     model = model.to(device)
-    model.model_name = model_name
+    # model.model_name = model_name
     
     print('Number of parameters: {}'.format(sum([p.numel() for p in model.parameters()])))
     
