@@ -71,8 +71,9 @@ def main():
     test_set = AlignIFDataset(args, 'test')
     test_loader = DataLoader(test_set, args.bsz, shuffle=False)
 
-    infer(model, test_loader, device)
     infer_without_msa(model, test_loader, device)
+    infer(model, test_loader, device)
+    
 
 
 if __name__ == "__main__":

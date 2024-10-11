@@ -208,7 +208,7 @@ class AlignIF(nn.Module):
             datum_batch = datum.batch
             align_h_V = torch.zeros_like(h_V)
             align_seq = torch.zeros_like(seq)
-            align_mask = torch.zeros(h_V.shape[0], device=h_V.device)
+            align_mask = torch.zeros(h_V.shape[0], device=h_V.device, dtype=bool)
             for i in range(datum_batch[-1] + 1):
                 align = datum.align[i][0]
                 if align is None:
@@ -219,13 +219,13 @@ class AlignIF(nn.Module):
                     align_i = align[:, 0] + (datum_batch < i).sum().item()
                     align_h_V[align0] = h_V_align[align_i]
                     align_seq[align0] = datum.seq[align_i]
-                    align_mask[align0] = datum.mask[align_i].to(align_mask.dtype)
+                    align_mask[align0] = datum.mask[align_i]
             align_h_V_list.append(align_h_V)
             align_seq_list.append(align_seq)
             align_mask_list.append(align_mask)
         h_V = torch.stack([h_V] + align_h_V_list, dim=0)
         align_seq = torch.stack([seq] + align_seq_list, dim=0)
-        align_mask = torch.stack([torch.ones(h_V.shape[1], device=h_V.device)] + align_mask_list, dim=0)[..., None]
+        align_mask = torch.stack([torch.ones(h_V.shape[1], device=h_V.device, dtype=bool)] + align_mask_list, dim=0)[..., None]
         
         # average merge
         h_V = (h_V * align_mask).sum(0) / align_mask.sum(0)
@@ -254,7 +254,7 @@ class AlignIF(nn.Module):
         for datum, h_V_align in zip(data[1:], h_V_list[1:]):
             datum_batch = datum.batch
             align_h_V = torch.zeros_like(h_V)
-            align_mask = torch.zeros(h_V.shape[0], device=h_V.device)
+            align_mask = torch.zeros(h_V.shape[0], device=h_V.device, dtype=bool)
             for i in range(datum_batch[-1] + 1):
                 align = datum.align[i][0]
                 if align is None:
@@ -264,11 +264,11 @@ class AlignIF(nn.Module):
                     align0 = align[:, 1] + (batch < i).sum().item()
                     align_i = align[:, 0] + (datum_batch < i).sum().item()
                     align_h_V[align0] = h_V_align[align_i]
-                    align_mask[align0] = datum.mask[align_i].to(align_mask.dtype)
+                    align_mask[align0] = datum.mask[align_i]
             align_h_V_list.append(align_h_V)
             align_mask_list.append(align_mask)
         h_V = torch.stack([h_V] + align_h_V_list, dim=0)
-        align_mask = torch.stack([torch.ones(h_V.shape[1], device=h_V.device)] + align_mask_list, dim=0)[..., None]
+        align_mask = torch.stack([torch.ones(h_V.shape[1], device=h_V.device, dtype=bool)] + align_mask_list, dim=0)[..., None]
         
         # average merge
         h_V = (h_V * align_mask).sum(0) / align_mask.sum(0)

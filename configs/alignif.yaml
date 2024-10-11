@@ -2,7 +2,7 @@ gpu: 0
 model_name: "alignif"
 
 n_aligns: 1
-loose_label: False
+loose_label: True
 
 bsz: 64
 lr: 0.001
