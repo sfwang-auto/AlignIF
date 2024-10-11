@@ -66,7 +66,12 @@ def main():
     args = parse_args('alignif.yaml')
 
     device = torch.device("cuda:{}".format(args.gpu) if torch.cuda.is_available() else "cpu")
-    model = get_model(args, device, model_path=f'paras/{args.model_name}_best.h5')
+
+    if args.loose_label:
+        name = "alignif_loose_label"
+    else:
+        name = "alignif"
+    model = get_model(args, device, model_path=f'paras/{name}_best.h5')
 
     test_set = AlignIFDataset(args, 'test')
     test_loader = DataLoader(test_set, args.bsz, shuffle=False)

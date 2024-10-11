@@ -21,6 +21,10 @@ class RNADataset(data.Dataset):
         self.processed_dir = 'data/repre_aligned_processed/'
         self.split = torch.load('data/repre_split.pt')[split]
         self.id_to_align = torch.load('data/repre_id_to_align.pt')
+        
+        self.data = {}
+        for id in self.split:
+            self.data[id] = torch.load(os.path.join(self.processed_dir, id + '.pt'))
     
     def radius_neighbor(self, X, eps=1e-6):
         dist = torch.sqrt(
@@ -36,7 +40,7 @@ class RNADataset(data.Dataset):
         return len(self.split)
     
     def __getitem__(self, idx): 
-        data = torch.load(os.path.join(self.processed_dir, self.split[idx] + '.pt'))
+        data = self.data[self.split[idx]]
 
         coords = torch.tensor(data['coords'][:, self.bb_idx]).to(torch.float32)
         central_coords = coords[:, self.central_idx]
@@ -71,6 +75,10 @@ class AlignIFDataset(data.Dataset):
         self.processed_dir = 'data/repre_aligned_processed/'
         self.split = torch.load('data/repre_split.pt')[split]
         self.id_to_align = torch.load('data/repre_id_to_align.pt')
+
+        self.data = {}
+        for id in self.split:
+            self.data[id] = torch.load(os.path.join(self.processed_dir, id + '.pt'))
     
     def radius_neighbor(self, X, eps=1e-6):
         dist = torch.sqrt(
@@ -86,7 +94,7 @@ class AlignIFDataset(data.Dataset):
         return len(self.split)
     
     def process(self, id, align_id=None):
-        data = torch.load(os.path.join(self.processed_dir, id + '.pt'))
+        data = self.data[id]
 
         coords = torch.tensor(data['coords'][:, self.bb_idx]).to(torch.float32)
         central_coords = coords[:, self.central_idx]
@@ -123,7 +131,8 @@ class AlignIFDataset(data.Dataset):
 
         data_list = [data]
         for align_id in align_ids:
-            data_list.append(self.process(align_id, id))
+            if random.random() > 0.5:
+                data_list.append(self.process(align_id, id))
         
         for _ in range(self.n_aligns + 1 - len(data_list)):
             data_list.append(self.process(id))

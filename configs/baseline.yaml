@@ -6,7 +6,7 @@ lr: 0.001
 n_epochs: 60
 
 central_atom: "C3'"
-bb_atoms: ["C3'"]
+bb_atoms: ["P", "O5'", "C5'", "C4'", "C3'", "O3'"]
 
 drop_rate: 0.1
 hidden_dim: 128
