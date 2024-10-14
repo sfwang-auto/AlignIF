@@ -13,8 +13,8 @@ def main():
     device = torch.device("cuda:{}".format(args.gpu) if torch.cuda.is_available() else "cpu")
     model = get_model(args, device)
 
-    train_set = RNADataset(args, 'train')
-    val_set = RNADataset(args, 'val')
+    train_set = RNADataset(args, 'train', read_all=True)
+    val_set = RNADataset(args, 'val', read_all=True)
     train_loader = DataLoader(train_set, args.bsz, shuffle=True)
     val_loader = DataLoader(val_set, args.bsz, shuffle=False)
 

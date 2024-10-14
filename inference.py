@@ -42,11 +42,12 @@ def infer(model, test_loader, device):
 
 def main():
     args = parse_args('baseline.yaml')
+    name = 'baseline_add_noise' if args.add_noise else "baseline"
 
     device = torch.device("cuda:{}".format(args.gpu) if torch.cuda.is_available() else "cpu")
-    model = get_model(args, device, model_path=f'paras/{args.model_name}_best.h5')
+    model = get_model(args, device, model_path=f'paras/{name}_best.h5')
 
-    test_set = RNADataset(args, 'test')
+    test_set = RNADataset(args, 'test', read_all=True)
     test_loader = DataLoader(test_set, args.bsz, shuffle=False)
 
     infer(model, test_loader, device)

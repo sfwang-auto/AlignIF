@@ -67,8 +67,8 @@ def main():
 
     device = torch.device("cuda:{}".format(args.gpu) if torch.cuda.is_available() else "cpu")
 
-    if args.loose_label:
-        name = "alignif_loose_label"
+    if args.relax_label:
+        name = "alignif_relax_label"
     else:
         name = "alignif"
     model = get_model(args, device, model_path=f'paras/{name}_best.h5')

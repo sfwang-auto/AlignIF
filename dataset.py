@@ -9,10 +9,9 @@ LETTER_TO_NUM = {'A': 0, 'G': 1, 'C': 2, 'U': 3, 'N': 4, '_': 4}
 
 
 class RNADataset(data.Dataset):
-    def __init__(self, args, split, radius=20):
+    def __init__(self, args, split, radius=20, read_all=False):
         super().__init__()
         self.radius = radius
-        self.n_aligns = args.n_aligns
 
         self.bb_atoms = args.bb_atoms
         self.central_idx = self.bb_atoms.index(args.central_atom)
@@ -22,9 +21,11 @@ class RNADataset(data.Dataset):
         self.split = torch.load('data/repre_split.pt')[split]
         self.id_to_align = torch.load('data/repre_id_to_align.pt')
         
-        self.data = {}
-        for id in self.split:
-            self.data[id] = torch.load(os.path.join(self.processed_dir, id + '.pt'))
+        self.read_all = read_all
+        if read_all:
+            self.data = {}
+            for id in self.split:
+                self.data[id] = torch.load(os.path.join(self.processed_dir, id + '.pt'))
     
     def radius_neighbor(self, X, eps=1e-6):
         dist = torch.sqrt(
@@ -40,7 +41,8 @@ class RNADataset(data.Dataset):
         return len(self.split)
     
     def __getitem__(self, idx): 
-        data = self.data[self.split[idx]]
+        id = self.split[idx]
+        data = self.data[id] if self.read_all else torch.load(os.path.join(self.processed_dir, id + '.pt'))
 
         coords = torch.tensor(data['coords'][:, self.bb_idx]).to(torch.float32)
         central_coords = coords[:, self.central_idx]
@@ -63,7 +65,7 @@ class RNADataset(data.Dataset):
 
 
 class AlignIFDataset(data.Dataset):
-    def __init__(self, args, split, radius=20):
+    def __init__(self, args, split, radius=20, read_all=False):
         super().__init__()
         self.radius = radius
         self.n_aligns = args.n_aligns
@@ -72,13 +74,16 @@ class AlignIFDataset(data.Dataset):
         self.central_idx = self.bb_atoms.index(args.central_atom)
         self.bb_idx = [BB_ATOMS.index(bb_atom) for bb_atom in self.bb_atoms]
         
+        self.is_test = split == 'test'
         self.processed_dir = 'data/repre_aligned_processed/'
         self.split = torch.load('data/repre_split.pt')[split]
         self.id_to_align = torch.load('data/repre_id_to_align.pt')
 
-        self.data = {}
-        for id in self.split:
-            self.data[id] = torch.load(os.path.join(self.processed_dir, id + '.pt'))
+        self.read_all = read_all
+        if read_all:
+            self.data = {}
+            for id in self.split:
+                self.data[id] = torch.load(os.path.join(self.processed_dir, id + '.pt'))
     
     def radius_neighbor(self, X, eps=1e-6):
         dist = torch.sqrt(
@@ -94,7 +99,7 @@ class AlignIFDataset(data.Dataset):
         return len(self.split)
     
     def process(self, id, align_id=None):
-        data = self.data[id]
+        data = self.data[id] if self.read_all else torch.load(os.path.join(self.processed_dir, id + '.pt'))
 
         coords = torch.tensor(data['coords'][:, self.bb_idx]).to(torch.float32)
         central_coords = coords[:, self.central_idx]
@@ -109,16 +114,16 @@ class AlignIFDataset(data.Dataset):
         mask = torch.logical_and(seq < 4, ~torch.isnan(central_coords[:, 0]))
 
         # notice that two align structures are exchange
-        align = [None]
+        align = None
         if align_id is not None:
-            align = [data['align'][align_id]['align']]
+            align = data['align'][align_id]['align']
 
         num_nodes = seq.shape[0]
         return Data(
             seq=seq, mask=mask, 
             num_nodes=num_nodes, edge_index=edge_index, 
             coords=coords, central_coords=central_coords, 
-            align=align
+            align=[align]
         )
     
     def __getitem__(self, idx): 
@@ -130,8 +135,8 @@ class AlignIFDataset(data.Dataset):
         align_ids = align_ids[:self.n_aligns]
 
         data_list = [data]
-        for align_id in align_ids:
-            if random.random() > 0.5:
+        if random.random() > 0.5 or self.is_test:
+            for align_id in align_ids:
                 data_list.append(self.process(align_id, id))
         
         for _ in range(self.n_aligns + 1 - len(data_list)):
