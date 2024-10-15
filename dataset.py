@@ -132,12 +132,14 @@ class AlignIFDataset(data.Dataset):
         
         align_ids = self.id_to_align[id]
         random.shuffle(align_ids)
-        align_ids = align_ids[:self.n_aligns]
+        if self.is_test:
+            align_ids = align_ids[:self.n_aligns]
+        else:
+            align_ids = align_ids[:random.randint(0, self.n_aligns)]
 
         data_list = [data]
-        if random.random() > 0.5 or self.is_test:
-            for align_id in align_ids:
-                data_list.append(self.process(align_id, id))
+        for align_id in align_ids:
+            data_list.append(self.process(align_id, id))
         
         for _ in range(self.n_aligns + 1 - len(data_list)):
             data_list.append(self.process(id))

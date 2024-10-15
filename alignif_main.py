@@ -15,6 +15,10 @@ def main():
 
     train_set = AlignIFDataset(args, 'train', read_all=True)
     val_set = AlignIFDataset(args, 'val', read_all=True)
+
+    # train_set = AlignIFDataset(args, 'train', read_all=False)
+    # val_set = AlignIFDataset(args, 'val', read_all=False)
+
     train_loader = DataLoader(train_set, args.bsz, shuffle=True)
     val_loader = DataLoader(val_set, args.bsz, shuffle=False)
 

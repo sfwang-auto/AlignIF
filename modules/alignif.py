@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from modules.layers import MPNNLayer
+from modules.layers import MPNNLayer, MSAMPNNLayer
 
 
 class Featurizer(nn.Module):
@@ -174,6 +174,7 @@ class AlignIF(nn.Module):
         super().__init__()
         drop_rate = args.drop_rate
         hidden_dim = args.hidden_dim
+        self.n_aligns = args.n_aligns
         self.relax_label = args.relax_label
         self.weight_smooth = args.weight_smooth
 
@@ -186,6 +187,8 @@ class AlignIF(nn.Module):
             [MPNNLayer(hidden_dim, drop_rate=drop_rate) for _ in range(args.n_decoder_layers)]
         )
         self.W_out = nn.Linear(hidden_dim, 4)
+
+        self.msa_layer = MSAMPNNLayer(hidden_dim, self.n_aligns, drop_rate=drop_rate)
 
         # Initialization
         for p in self.parameters():
@@ -230,7 +233,6 @@ class AlignIF(nn.Module):
         h_V = h_V_list[0]
         h_E = h_E_list[0]
         seq = data[0].seq
-        mask = data[0].mask
         batch = data[0].batch
         edge_idx = data[0].edge_index
         
@@ -316,26 +318,15 @@ class AlignIF(nn.Module):
         align_edge_weights = weights[:, batch[edge_idx[0]], None]
         align_edge_weights = (align_edge_weights * aligned_edge_mask[..., None]) / (align_edge_weights * aligned_edge_mask[..., None]).sum(0, keepdim=True)
 
-        node_align_loss, edge_align_loss = 0, 0
-        node_align_counts, edge_align_counts = 0, 0
-        for i in range(1, n_structures):
-            valid_aligned_mask = mask * aligned_mask[i].squeeze(-1)
-            valid_aligned_h_V = h_V[:, valid_aligned_mask]
-            valid_aligned_h_E = h_E[:, aligned_edge_mask[i]]
-            node_align_loss = node_align_loss + (valid_aligned_h_V[0] - valid_aligned_h_V[1]).pow(2).sum(-1).mean()
-            edge_align_loss = edge_align_loss + (valid_aligned_h_E[0] - valid_aligned_h_E[1]).pow(2).sum(-1).mean()
-            node_align_counts += valid_aligned_mask.sum()
-            edge_align_counts += aligned_edge_mask[i].sum()
-
         # h_V = (h_V * align_weights).sum(0)
         # h_E = (h_E * align_edge_weights).sum(0)
-        h_V = h_V[0]
+        h_V = self.msa_layer(h_V)
         h_E = h_E[0]
-        return h_V, h_E, aligned_seq, align_weights, node_align_loss, node_align_counts, edge_align_loss, edge_align_counts
+        return h_V, h_E, aligned_seq, align_weights
     
     def forward(self, data):
         # h_V, h_E, align_seq, align_mask = self.msa_encode(data)
-        h_V, h_E, align_seq, align_weights, node_align_loss, node_align_counts, edge_align_loss, edge_align_counts = self.msa_encode(data)
+        h_V, h_E, align_seq, align_weights = self.msa_encode(data)
 
         for layer in self.decoder_layers:
             h_V = layer(h_V, h_E, data[0].edge_index)
@@ -343,10 +334,10 @@ class AlignIF(nn.Module):
         logits = self.W_out(h_V)
         # ce_loss = self.cal_ce_loss(align_seq, align_mask, data[0].mask, logits)
         ce_loss = self.cal_ce_loss(align_seq, align_weights, data[0].mask, logits)
-        return ce_loss, node_align_loss, node_align_counts, edge_align_loss, edge_align_counts
+        return ce_loss
     
     def infer(self, data):
-        h_V, h_E, _, _, _, _, _, _ = self.msa_encode(data)
+        h_V, h_E, _, _ = self.msa_encode(data)
 
         for layer in self.decoder_layers:
             h_V = layer(h_V, h_E, data[0].edge_index)
