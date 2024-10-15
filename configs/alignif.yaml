@@ -6,7 +6,7 @@ relax_label: False
 
 bsz: 64
 lr: 0.001
-n_epochs: 100
+n_epochs: 60
 
 central_atom: "C3'"
 bb_atoms: ["P", "O5'", "C5'", "C4'", "C3'", "O3'"]

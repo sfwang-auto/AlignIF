@@ -73,10 +73,12 @@ def main():
         name = "alignif"
     model = get_model(args, device, model_path=f'paras/{name}_best.h5')
 
-    test_set = AlignIFDataset(args, 'test')
+    test_set = AlignIFDataset(args, 'test', use_align=False)
     test_loader = DataLoader(test_set, args.bsz, shuffle=False)
+    infer(model, test_loader, device)
 
-    infer_without_msa(model, test_loader, device)
+    test_set = AlignIFDataset(args, 'test', use_align=True)
+    test_loader = DataLoader(test_set, args.bsz, shuffle=False)
     infer(model, test_loader, device)
     
 

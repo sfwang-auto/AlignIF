@@ -13,11 +13,11 @@ def main():
     device = torch.device("cuda:{}".format(args.gpu) if torch.cuda.is_available() else "cpu")
     model = get_model(args, device)
 
-    train_set = AlignIFDataset(args, 'train', read_all=True)
-    val_set = AlignIFDataset(args, 'val', read_all=True)
+    train_set = AlignIFDataset(args, 'train', read_all=True, use_align=True)
+    val_set = AlignIFDataset(args, 'val', read_all=True, use_align=True)
 
-    # train_set = AlignIFDataset(args, 'train', read_all=False)
-    # val_set = AlignIFDataset(args, 'val', read_all=False)
+    # train_set = AlignIFDataset(args, 'train', read_all=False, use_align=False)
+    # val_set = AlignIFDataset(args, 'val', read_all=False, use_align=False)
 
     train_loader = DataLoader(train_set, args.bsz, shuffle=True)
     val_loader = DataLoader(val_set, args.bsz, shuffle=False)

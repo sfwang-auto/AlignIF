@@ -65,9 +65,10 @@ class RNADataset(data.Dataset):
 
 
 class AlignIFDataset(data.Dataset):
-    def __init__(self, args, split, radius=20, read_all=False):
+    def __init__(self, args, split, radius=20, read_all=False, use_align=True):
         super().__init__()
         self.radius = radius
+        self.use_align = use_align
         self.n_aligns = args.n_aligns
 
         self.bb_atoms = args.bb_atoms
@@ -136,6 +137,9 @@ class AlignIFDataset(data.Dataset):
             align_ids = align_ids[:self.n_aligns]
         else:
             align_ids = align_ids[:random.randint(0, self.n_aligns)]
+        
+        if not self.use_align:
+            align_ids = []
 
         data_list = [data]
         for align_id in align_ids:

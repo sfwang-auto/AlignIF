@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from modules.layers import MPNNLayer, MSAMPNNLayer
+from modules.layers import MPNNLayer, MSALayer
 
 
 class Featurizer(nn.Module):
@@ -188,7 +188,7 @@ class AlignIF(nn.Module):
         )
         self.W_out = nn.Linear(hidden_dim, 4)
 
-        self.msa_layer = MSAMPNNLayer(hidden_dim, self.n_aligns, drop_rate=drop_rate)
+        self.msa_layer = MSALayer(hidden_dim, drop_rate=drop_rate)
 
         # Initialization
         for p in self.parameters():
@@ -320,8 +320,7 @@ class AlignIF(nn.Module):
 
         # h_V = (h_V * align_weights).sum(0)
         # h_E = (h_E * align_edge_weights).sum(0)
-        h_V = self.msa_layer(h_V)
-        h_E = h_E[0]
+        h_V, h_E = self.msa_layer(h_V, h_E, edge_idx, aligned_mask)
         return h_V, h_E, aligned_seq, align_weights
     
     def forward(self, data):
