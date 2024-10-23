@@ -421,7 +421,7 @@ class MixUpIF(nn.Module):
         aligned_coords = torch.nan_to_num(aligned_coords)
         coords = align_weights_ * coords + (1 - align_weights_) * aligned_coords
         data[0].coords = coords
-        return data[0], aligned_seq, align_weights
+        return data[0], aligned_seq, align_weights.squeeze(-1)
     
     def forward(self, data):
         data, aligned_seq, align_weights = self.coords_mixup(data)
@@ -439,10 +439,6 @@ class MixUpIF(nn.Module):
     
     def infer(self, data):
         h_V, h_E = self.featurizer(data)
-        h_V = torch.nan_to_num(h_V)
-        h_E = torch.nan_to_num(h_E)
-        h_V = self.node_norm(self.node_embedding(h_V))
-        h_E = self.edge_norm(self.edge_embedding(h_E))
 
         for layer in self.encoder_layers:
             h_V, h_E = layer(h_V, h_E, data.edge_index)
