@@ -1,0 +1,18 @@
+gpu: 0
+model_name: "alignif"
+
+n_aligns: 1
+relax_label: False
+
+bsz: 64
+lr: 0.001
+n_epochs: 60
+
+central_atom: "C3'"
+bb_atoms: ["P", "O5'", "C5'", "C4'", "C3'", "O3'"]
+
+drop_rate: 0.1
+hidden_dim: 128
+weight_smooth: 0.1
+n_encoder_layers: 3
+n_decoder_layers: 3

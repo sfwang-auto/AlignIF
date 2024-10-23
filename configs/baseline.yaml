@@ -1,0 +1,15 @@
+gpu: 0
+model_name: "baseline"
+
+bsz: 64
+lr: 0.0001
+n_epochs: 100
+
+central_atom: "C3'"
+bb_atoms: ["P", "O5'", "C5'", "C4'", "C3'", "O3'"]
+
+drop_rate: 0.1
+hidden_dim: 128
+weight_smooth: 0.1
+n_encoder_layers: 3
+n_decoder_layers: 3
