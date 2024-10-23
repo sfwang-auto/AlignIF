@@ -353,6 +353,7 @@ class MixUpIF(nn.Module):
         drop_rate = args.drop_rate
         hidden_dim = args.hidden_dim
         self.weight_smooth = args.weight_smooth
+        self.central_idx = args.bb_atoms.index(args.central_atom)
 
         self.featurizer = Featurizer(args)
 
@@ -421,6 +422,14 @@ class MixUpIF(nn.Module):
         aligned_coords = torch.nan_to_num(aligned_coords)
         coords = align_weights_ * coords + (1 - align_weights_) * aligned_coords
         data[0].coords = coords
+
+        edge_idx = []
+        for i in range(bsz):
+            central_coords = coords[batch0 == i, self.central_idx]
+            src_idx, tgt_idx = radius_neighbor(central_coords)
+            edge_idx.append(torch.cat([src_idx[None], tgt_idx[None]], dim=0) + (batch0 < i).sum())
+        edge_idx = torch.cat(edge_idx, dim=-1)
+        data[0].edge_index = edge_idx
         return data[0], aligned_seq, align_weights.squeeze(-1)
     
     def forward(self, data):
@@ -450,3 +459,14 @@ class MixUpIF(nn.Module):
         pred = logits.argmax(-1)
 
         return pred, logits
+
+
+def radius_neighbor(X, r=20, eps=1e-6):
+    dist = torch.sqrt(
+        (X[:, None] - X[None]).pow(2).sum(-1) + eps
+    )
+
+    n = X.shape[0]
+    dist[torch.arange(n), torch.arange(n)] = 0
+    tgt_idx, src_idx = torch.where(dist < r)
+    return src_idx, tgt_idx
