@@ -393,11 +393,10 @@ class MixUpIF(nn.Module):
         coords = data[0].coords
 
         device = coords.device
-        n_nodes = coords.shape[0]
 
         aligned_coords = torch.ones_like(coords) * torch.nan
         aligned_seq = torch.zeros_like(data[0].seq)
-        aligned_mask = torch.zeros(n_nodes, device=device, dtype=bool)
+        aligned_mask = torch.zeros(coords.shape[0], device=device, dtype=bool)
 
         bsz = batch0[-1] + 1
         for i in range(bsz):
@@ -432,18 +431,112 @@ class MixUpIF(nn.Module):
         data[0].edge_index = edge_idx
         return data[0], aligned_seq, align_weights.squeeze(-1)
     
-    def forward(self, data):
-        data, aligned_seq, align_weights = self.coords_mixup(data)
-        h_V, h_E = self.featurizer(data)
+    def feature_mixup(self, data, h_V0, h_V1, h_E0, h_E1):
+        batch0 = data[0].batch
+        batch1 = data[1].batch
+        edge_idx0 = data[0].edge_index
+        edge_idx1 = data[1].edge_index
 
+        device = h_V0.device
+
+        aligned_h_V = torch.zeros_like(h_V0)
+        aligned_h_E = torch.zeros_like(h_E0)
+        aligned_seq = torch.zeros_like(data[0].seq)
+        aligned_mask = torch.zeros(h_V0.shape[0], device=device, dtype=bool)
+        aligned_edge_mask = torch.zeros(h_E0.shape[0], device=device, dtype=bool)
+
+        bsz = batch0[-1] + 1
+        for i in range(bsz):
+            align = data[1].align[i][0]
+            if align is None:
+                continue
+            else:
+                # two align structures are exchange in dataset.AlignIFDataset.process()
+                align0 = torch.tensor(align[:, 1] + (batch0 < i).sum().item(), device=device)
+                align1 = torch.tensor(align[:, 0] + (batch1 < i).sum().item(), device=device)
+
+                aligned_h_V[align0] = h_V1[align1]
+                aligned_seq[align0] = data[1].seq[align1]
+                aligned_mask[align0] = data[1].mask[align1]
+
+                edge_mask0 = torch.isin(edge_idx0[0], align0) & torch.isin(edge_idx0[1], align0)
+                edge_mask1 = torch.isin(edge_idx1[0], align1) & torch.isin(edge_idx1[1], align1)
+
+                n_align = align.shape[0]
+                mapping0 = torch.zeros(edge_idx0.max().item() + 1, dtype=torch.long, device=device)
+                mapping1 = torch.zeros(edge_idx1.max().item() + 1, dtype=torch.long, device=device)
+                mapping0[align0] = torch.arange(n_align, device=device)
+                mapping1[align1] = torch.arange(n_align, device=device)
+
+                aligned_edge_idx0 = mapping0[edge_idx0[:, edge_mask0]]
+                aligned_edge_idx1 = mapping1[edge_idx1[:, edge_mask1]]
+
+                A0 = torch.zeros((n_align, n_align), device=device)
+                A1 = torch.zeros((n_align, n_align), device=device)
+                A0[aligned_edge_idx0[1], aligned_edge_idx0[0]] = 1
+                A1[aligned_edge_idx1[1], aligned_edge_idx1[0]] = 1
+                A_idx = torch.where(A0 * A1)[::-1]
+                A_idx = torch.stack(A_idx, dim=0)
+
+                reverse_mapping0 = torch.zeros(align0.max().item() + 1, dtype=torch.long, device=device)
+                reverse_mapping1 = torch.zeros(align1.max().item() + 1, dtype=torch.long, device=device)
+                reverse_mapping0[torch.arange(n_align)] = align0
+                reverse_mapping1[torch.arange(n_align)] = align1
+
+                aligned_edge_idx0 = reverse_mapping0[A_idx]
+                aligned_edge_idx1 = reverse_mapping1[A_idx]
+
+                aligned_edge_mask0 = (edge_idx0[:, None] == aligned_edge_idx0[..., None]).all(0).any(0)
+                aligned_edge_mask1 = (edge_idx1[:, None] == aligned_edge_idx1[..., None]).all(0).any(0)
+
+                aligned_h_E[aligned_edge_mask0] = h_E1[aligned_edge_mask1]
+                aligned_edge_mask[aligned_edge_mask0] = True
+        
+        # beta merge
+        weights = self.beta.sample((bsz, )).to(device)
+        align_weights = weights[batch0]
+        align_weights[~aligned_mask] = 1
+        align_weights_ = align_weights.expand(h_V0.shape)
+
+        align_edge_weights = weights[batch0[edge_idx0[0]]]
+        align_edge_weights[~aligned_edge_mask] = 1
+        align_edge_weights_ = align_edge_weights.expand(h_E0.shape)
+
+        h_V = align_weights_ * h_V0 + (1 - align_weights_) * aligned_h_V
+        h_E = align_edge_weights_ * h_E0 + (1 - align_edge_weights_) * aligned_h_E
+
+        return h_V, h_E, aligned_seq, align_weights
+    
+    # mixup coords
+    # def forward(self, data):
+    #     data, aligned_seq, align_weights = self.coords_mixup(data)
+    #     h_V, h_E = self.featurizer(data)
+
+    #     for layer in self.encoder_layers:
+    #         h_V, h_E = layer(h_V, h_E, data.edge_index)
+
+    #     for layer in self.decoder_layers:
+    #         h_V = layer(h_V, h_E, data.edge_index)
+        
+    #     logits = self.W_out(h_V)
+    #     ce_loss = self.cal_ce_loss(data.seq, data.mask, logits, aligned_seq, align_weights)
+    #     return ce_loss
+
+    def forward(self, data):
+        h_V0, h_E0 = self.featurizer(data[0])
+        h_V1, h_E1 = self.featurizer(data[1])
+        
         for layer in self.encoder_layers:
-            h_V, h_E = layer(h_V, h_E, data.edge_index)
+            h_V0, h_E0 = layer(h_V0, h_E0, data[0].edge_index)
+            h_V1, h_E1 = layer(h_V1, h_E1, data[1].edge_index)
+        
+        h_V, h_E, aligned_seq, align_weights = self.feature_mixup(data, h_V0, h_V1, h_E0, h_E1)
 
         for layer in self.decoder_layers:
-            h_V = layer(h_V, h_E, data.edge_index)
+            h_V = layer(h_V, h_E, data[0].edge_index)
         
         logits = self.W_out(h_V)
-        ce_loss = self.cal_ce_loss(data.seq, data.mask, logits, aligned_seq, align_weights)
+        ce_loss = self.cal_ce_loss(data[0].seq, data[0].mask, logits, aligned_seq, align_weights)
         return ce_loss
     
     def infer(self, data):
