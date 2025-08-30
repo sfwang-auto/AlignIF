@@ -29,13 +29,13 @@ Note: We have tested the environment on Ubuntu 20.04.6 and CUDA 12.4. If you are
 You are required to input the structure file (.pdb or .cif) of the RNA structures. AlignIF will subsequently output the designed sequences (`outputs`). 
 
 ```
-python inference.py -input_structure_path ./example.pdb -n_samples 1 -use_msta True -temperature 0.1
+python src/inference.py --input_structure_path ./example.pdb --n_samples 1 --use_msta True --temperature 0.1
 ```
 
 Furthermore, you can specify the max number of alignment (the MStA depth).
 
 ```
-python inference.py -input_structure_path ./example.pdb -n_samples 1 -use_msta True -max_n_aligns 50 -temperature 0.1
+python src/inference.py --input_structure_path ./example.pdb --n_samples 1 --use_msta True --max_n_aligns 50 --temperature 0.1
 ```
 
 ## License
