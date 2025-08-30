@@ -39,4 +39,7 @@ python src/inference.py --input_structure_path ./example.pdb --n_samples 1 --use
 ```
 
 ## License
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [CC-BY-NC-4.0](LICENSE).
+
+## Online service
+We also provide online retrieval service [http://www.csbio.sjtu.edu.cn/bioinf/AlignIF](http://www.csbio.sjtu.edu.cn/bioinf/AlignIF/).
