@@ -42,4 +42,4 @@ python src/inference.py --input_structure_path ./example.pdb --n_samples 1 --use
 This project is licensed under the [CC-BY-NC-4.0](LICENSE).
 
 ## Online service
-We also provide online retrieval service [http://www.csbio.sjtu.edu.cn/bioinf/AlignIF](http://www.csbio.sjtu.edu.cn/bioinf/AlignIF/).
+We also provide online service [http://www.csbio.sjtu.edu.cn/bioinf/AlignIF](http://www.csbio.sjtu.edu.cn/bioinf/AlignIF/).
